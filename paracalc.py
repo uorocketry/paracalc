@@ -4,21 +4,21 @@ import os
 import reportlab
 from reportlab.pdfgen import canvas
 
-def generate_arc(iterations, diameter, height):
+def generate_arc(iterations, radius, height):
     # Generates points along the circumference of an ellipse with equal radial spacing
     arc = [] #(distance_along_arc, x_coordinate)
-    inner_circle = min(height * 2, diameter)
-    outer_circle = max(height * 2, diameter)
+    inner_circle_radius = min(height, radius)
+    outer_circle_radius = max(height, radius)
     angle_increment = math.pi / (2 * (iterations - 1))
-    prev_x = outer_circle
+    prev_x = outer_circle_radius
     prev_y = 0
     arc_length = 0
     
     # Use the concentric circle method to generate points with equal radial spacing
     # Equal radial spacing is close to equal spacing along the arc for ellipses with low eccentricity
     for i in range(iterations):
-        y = inner_circle * math.sin(i * angle_increment)
-        x = outer_circle * math.cos(i * angle_increment)
+        y = inner_circle_radius * math.sin(i * angle_increment)
+        x = outer_circle_radius * math.cos(i * angle_increment)
         arc_length += math.hypot(x-prev_x, y-prev_y)
         arc.append((arc_length, x))
         prev_x = x
@@ -27,7 +27,7 @@ def generate_arc(iterations, diameter, height):
     return arc
 
 
-def generate_lines(arc, num_line_segments, num_gores):
+def generate_lines(arc, spillhole_radius, num_line_segments, num_gores):
     # Gets points with equal spacing along the arc and calculates their respective gore widths
     line_segments = [] #(distance_along_arc, width_of_gore/2)
     segment_length = arc[len(arc) - 1][0] / (num_line_segments + 1) # Length of one line segment
@@ -37,39 +37,56 @@ def generate_lines(arc, num_line_segments, num_gores):
     for i in range(num_line_segments):
         while arc[arc_index][0] < segment_length * i:
             arc_index += 1
+            #print(arc[arc_index][1])
+            if spillhole_radius >= arc[arc_index][1]:
+                # Stop at specified spillhole diameter
+                line_segments.append((arc[arc_index][0], gore_circumference_ratio * arc[arc_index][1]))
+                return line_segments
         line_segments.append((arc[arc_index][0], gore_circumference_ratio * arc[arc_index][1]))
+
+    # No spillhole
     # Set tip x coordinate to zero to ensure that the gore lines form a closed loop
     line_segments.append((arc[len(arc) - 1][0], 0))
     return line_segments
 
 
-def generate_gore(iterations, diameter, height, num_lines, num_gores, margins, file_path):
+def generate_gore(iterations, diameter, spillhole_diameter, height, num_lines, num_gores, margins, file_path):
     # margins (top, bottom, left, right)
-    print('Generating gore: diameter={0}cm, height={1}cm, gores={2}, lines={3}, iterations={4}'.format(round(diameter, 2), round(height, 2), num_gores, num_lines, iterations))
+    print('Generating gore: diameter={0}cm, spillhole diameter={1}cm, height={2}cm, gores={3}, lines={4}, iterations={5}'.format(round(diameter, 2), round(spillhole_diameter, 2), round(height, 2), num_gores, num_lines, iterations))
     
-    arc = generate_arc(iterations, diameter, height) #(distance_along_arc, x_coordinate)
-    line_segments = generate_lines(arc, num_lines, num_gores) #(distance_along_arc, width_of_gore/2)
+    arc = generate_arc(iterations, diameter / 2, height) #(distance_along_arc, x_coordinate)
+    line_segments = generate_lines(arc, spillhole_diameter / 2, num_lines, num_gores) #(distance_along_arc, width_of_gore/2)
 
+    # Scale line segments from cm to points
     cm_to_point = 28.346456693
+    for i in range(len(line_segments)):
+        line_segments[i] = (cm_to_point * line_segments[i][0], cm_to_point * line_segments[i][1])
+    margins = tuple(cm_to_point*margin for margin in margins)
     gore_radius = line_segments[0][1]
+
     # Size canvas
     c = canvas.Canvas(file_path, pagesize=(
-        cm_to_point * (gore_radius * 2 + margins[2] + margins[3]), 
-        cm_to_point * (line_segments[len(line_segments) - 1][0] +  + margins[0] + margins[1])))
+        gore_radius * 2 + margins[2] + margins[3], 
+        line_segments[len(line_segments) - 1][0] + margins[0] + margins[1]))
+    
     # Draw lines
-
     for i in range(len(line_segments) - 1):
         c.line(
-            cm_to_point * (gore_radius + line_segments[i][1] + margins[2]), cm_to_point * (line_segments[i][0] + margins[1]),
-            cm_to_point * (gore_radius + line_segments[i+1][1] + margins[2]), cm_to_point * (line_segments[i+1][0] + margins[1]))
+            gore_radius + line_segments[i][1] + margins[2], line_segments[i][0] + margins[1],
+            gore_radius + line_segments[i+1][1] + margins[2], line_segments[i+1][0] + margins[1])
     for i in range(len(line_segments) - 1):
         c.line(
-            cm_to_point * (gore_radius - line_segments[i][1] + margins[2]), cm_to_point * (line_segments[i][0] + margins[1]),
-            cm_to_point * (gore_radius - line_segments[i+1][1] + margins[2]), cm_to_point * (line_segments[i+1][0] + margins[1]))
+            gore_radius - line_segments[i][1] + margins[2], line_segments[i][0] + margins[1],
+            gore_radius - line_segments[i+1][1] + margins[2], line_segments[i+1][0] + margins[1])
     c.line(
-        cm_to_point * (gore_radius - line_segments[0][1] + margins[2]), cm_to_point * (line_segments[0][0] + margins[1]),
-        cm_to_point * (gore_radius + line_segments[0][1] + margins[2]), cm_to_point * (line_segments[0][0] + margins[1]))
+        gore_radius - line_segments[0][1] + margins[2], line_segments[0][0] + margins[1],
+        gore_radius + line_segments[0][1] + margins[2], line_segments[0][0] + margins[1])
+    if spillhole_diameter > 0:
+        c.line(
+            gore_radius - line_segments[len(line_segments) - 1][1] + margins[2], line_segments[len(line_segments) - 1][0] + margins[1],
+            gore_radius + line_segments[len(line_segments) - 1][1] + margins[2], line_segments[len(line_segments) - 1][0] + margins[1])
 
+    print(line_segments)
     try:
         c.save()
         print('file saved to {0}'.format(file_path))
@@ -81,6 +98,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Generate parachute gores')
 
     parser.add_argument('diameter', type=float, help='canopy diameter (measured in cm across the inflated canopy bottom)')
+    parser.add_argument('spillhole', type=float, help='spillhole diameter (measured in cm across the inflated canopy spillhole)')
     parser.add_argument('gores', type=int, help='number of gores.')
     parser.add_argument('-t', type=float, help='canopy height (measured in cm from canopy top to bottom, ignoring spillhole size)', dest='height', default=-1)
     parser.add_argument('-l', type=int, help='number of line segments per side of gore', dest='lines', default=100)
@@ -92,6 +110,12 @@ def parse_args():
     height = 0
     if args.diameter <= 0:
         print('error: argument diameter: diameter must be greater than zero')
+        return
+    if args.spillhole < 0:
+        print('error: argument spillhole: diameter can not be negative')
+        return
+    if args.spillhole >= args.diameter:
+        print('error: argument spillhole: spillhole diameter must be less than canopy diameter')
         return
     if args.gores <= 0:
         print('error: argument gores: number of gores must be greater than zero')
@@ -110,7 +134,7 @@ def parse_args():
         return
     for margin in args.margins:
         if margin < 0:
-            print('error: argument margins: margins cannot be negative')
+            print('error: argument margins: margins can not be negative')
             return
 
     file_path = ''
@@ -122,7 +146,7 @@ def parse_args():
         print('error: argument output: invalid output file')
         return
 
-    generate_gore(args.iterations, args.diameter, height, args.lines, args.gores, tuple(args.margins), file_path)
+    generate_gore(args.iterations, args.diameter, args.spillhole, height, args.lines, args.gores, tuple(args.margins), file_path)
 
 
 parse_args()
