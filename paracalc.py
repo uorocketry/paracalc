@@ -1,4 +1,6 @@
+import argparse
 import math
+
 
 def generate_arc(iterations, radius, height):
     # Generates points along the circumference of an ellipse with equal radial spacing
@@ -6,6 +8,7 @@ def generate_arc(iterations, radius, height):
     inner_circle = min(height, radius)
     outer_circle = max(height, radius)
     
+    angle_increment = math.pi / (2 * iterations)
     prev_x = outer_circle
     prev_y = 0
     arc_length = 0
@@ -22,6 +25,7 @@ def generate_arc(iterations, radius, height):
     
     return arc
 
+
 def generate_lines(arc, num_line_segments, num_gores):
     # Gets points with equal spacing along the arc and calculates their respective gore widths
     line_segments = [] #(distance_along_arc, width_of_gore/2)
@@ -37,16 +41,45 @@ def generate_lines(arc, num_line_segments, num_gores):
 
     return line_segments
 
-radius = 1
-height = radius / math.sqrt(2)
-num_gores = 12
-num_line_segments = 100
 
-iterations = 100000
-angle_increment = math.pi / (2 * iterations)
+def generate_gore(iterations, diameter, height, num_lines, num_gores):
+    print('Generating gore: diameter={0}, height={1}, gores={2}, lines={3}, iterations={4}'.format(diameter, height, num_gores, num_lines, iterations))
+    
+    arc = generate_arc(iterations, diameter / 2, height) #(distance_along_arc, x_coordinate)
+    line_segments = generate_lines(arc, num_lines, num_gores) #(distance_along_arc, width_of_gore/2)
 
-arc = generate_arc(iterations, radius, height) #(distance_along_arc, x_coordinate)
-line_segments = generate_lines(arc, num_line_segments, num_gores) #(distance_along_arc, width_of_gore/2)
+    print(line_segments)
+    print(len(line_segments))
 
-print(line_segments)
-print(len(line_segments))
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Generate parachute gores')
+
+    parser.add_argument('diameter', type=float, help='Canopy diameter (measured across the inflated canopy bottom).')
+    parser.add_argument('gores', type=int, help='Number of gores.')
+    parser.add_argument('-t', type=float, help='Canopy height (measured from canopy top to bottom, ignoring spillhole size).', dest='height', default=-1)
+    parser.add_argument('-l', type=int, help='Number of line segments per side of gore.', dest='lines', default=100)
+    parser.add_argument('-i', type=int, help='Total iterations used to approximate ellipse arc segments', dest='iterations', default=100000)
+
+    args = parser.parse_args()
+    height = 0
+    if args.diameter <= 0:
+        print('error: argument diameter: diameter must be greater than zero')
+        return
+    if args.gores <= 0:
+        print('error: argument gores: number of gores must be greater than zero')
+        return
+    if args.height <= 0:
+        print('canopy height set to radius/sqrt(2)')
+        height = args.diameter / 2*math.sqrt(2)
+    if args.lines <= 0:
+        print('error: argument lines: number of lines must be greater than zero')
+        return
+    if args.iterations <= 0:
+        print('error: argument iterations: iterations must be greater than zero')
+        return
+
+    generate_gore(args.iterations, args.diameter, height, args.lines, args.gores)
+
+
+parse_args()
