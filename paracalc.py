@@ -37,7 +37,6 @@ def generate_lines(arc, spillhole_radius, num_line_segments, num_gores):
     for i in range(num_line_segments):
         while arc[arc_index][0] < segment_length * i:
             arc_index += 1
-            #print(arc[arc_index][1])
             if spillhole_radius >= arc[arc_index][1]:
                 # Stop at specified spillhole diameter
                 line_segments.append((arc[arc_index][0], gore_circumference_ratio * arc[arc_index][1]))
@@ -86,7 +85,6 @@ def generate_gore(iterations, diameter, spillhole_diameter, height, num_lines, n
             gore_radius - line_segments[len(line_segments) - 1][1] + margins[2], line_segments[len(line_segments) - 1][0] + margins[1],
             gore_radius + line_segments[len(line_segments) - 1][1] + margins[2], line_segments[len(line_segments) - 1][0] + margins[1])
 
-    print(line_segments)
     try:
         c.save()
         print('file saved to {0}'.format(file_path))
@@ -99,12 +97,12 @@ def parse_args():
 
     parser.add_argument('diameter', type=float, help='canopy diameter (measured in cm across the inflated canopy bottom)')
     parser.add_argument('spillhole', type=float, help='spillhole diameter (measured in cm across the inflated canopy spillhole)')
-    parser.add_argument('gores', type=int, help='number of gores.')
+    parser.add_argument('gores', type=int, help='number of gores')
     parser.add_argument('-t', type=float, help='canopy height (measured in cm from canopy top to bottom, ignoring spillhole size)', dest='height', default=-1)
     parser.add_argument('-l', type=int, help='number of line segments per side of gore', dest='lines', default=100)
     parser.add_argument('-i', type=int, help='total iterations used to approximate ellipse arc segments', dest='iterations', default=100000)
     parser.add_argument('-o', type=str, help='output file', dest='output', default='template.pdf')
-    parser.add_argument('-m', type=float, nargs='+', help='page margins in cm (top, bottom, left, right)', dest='margins', default=[2,2,2,2])
+    parser.add_argument('-m', type=float, nargs='+', help='page margins in cm (top bottom left right)', dest='margins', default=[2,2,2,2])
 
     args = parser.parse_args()
     height = 0
