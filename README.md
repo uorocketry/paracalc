@@ -2,16 +2,22 @@
 
 A parachute gore template generator
 
+## Prerequisites
+
+Reportlab is required to generate pdf files
+
+    pip install reportlab
+
 ## Usage
 
-    paracalc.py diameter spillhole gores 
-    [-h] [-t HEIGHT] [-l LINES] [-i ITERATIONS] [-o OUTPUT] [-m MARGINS [MARGINS ...]]
+    paracalc.py diameter spillhole gores [-h] [-t HEIGHT] [-l LINES] [-i ITERATIONS] [-o OUTPUT] [-m MARGINS [MARGINS ...]]
 
 positional arguments:
 
     diameter    canopy diameter (measured in cm across the inflated canopy bottom)
     spillhole   spillhole diameter (measured in cm across the inflated canopy spillhole)
     gores       number of gores
+
 optional arguments:
 
     -h, --help                  show help message and exit
