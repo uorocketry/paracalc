@@ -3,7 +3,6 @@ import math
 import os
 import reportlab
 from reportlab.pdfgen import canvas
-import random
 
 class LineGenerator:
     def __init__(self, arc, spillhole_radius, num_line_segments, num_gores, margins):
@@ -158,17 +157,10 @@ def generate_gore(iterations, diameter, spillhole_diameter, height, outline_widt
     c = canvas.Canvas(file_path, pagesize=(
         margins[2] + line_generator.width + margins[3], 
         margins[0] + line_generator.height + margins[1]))
-    #c.lines(line_generator.template)
-    for i in range(0, len(line_generator.template), 1):
-        c.setStrokeColorRGB(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-        c.line(line_generator.template[i][0], line_generator.template[i][1], line_generator.template[i][2], line_generator.template[i][3])
+    c.lines(line_generator.template)
     c.setDash(2, 2)
     if outline_width > 0:
-        #c.lines(line_generator.create_outline(outline_width))
-        line_generator.create_outline(outline_width)
-        for i in range(0, len(line_generator.outline), 1):
-            c.setStrokeColorRGB(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-            c.line(line_generator.outline[i][0], line_generator.outline[i][1], line_generator.outline[i][2], line_generator.outline[i][3])
+        c.lines(line_generator.create_outline(outline_width))
 
     try:
         c.save()
