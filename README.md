@@ -10,7 +10,7 @@ Reportlab is required to generate pdf files
 
 ## Usage
 
-    paracalc.py diameter spillhole gores [-h] [-t HEIGHT] [-l LINES] [-i ITERATIONS] [-o OUTPUT] [-m MARGINS [MARGINS ...]]
+    paracalc.py diameter spillhole gores [-h] [-t HEIGHT] [-a ALLOWANCE] [-l LINES] [-i ITERATIONS] [-o OUTPUT] [-m MARGINS [MARGINS ...]]
 
 positional arguments:
 
@@ -22,6 +22,7 @@ optional arguments:
 
     -h, --help                  show help message and exit
     -t HEIGHT                   canopy height (measured in cm from canopy top to bottom, ignoring spillhole size)
+    -a ALLOWANCE                stitching allowance in cm
     -l LINES                    number of line segments per side of gore
     -i ITERATIONS               total iterations used to approximate ellipse arc segments
     -o OUTPUT                   output file

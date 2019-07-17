@@ -3,9 +3,9 @@ import math
 import os
 import reportlab
 from reportlab.pdfgen import canvas
+import random
 
-
-class LineGenerator(object):
+class LineGenerator:
     def __init__(self, arc, spillhole_radius, num_line_segments, num_gores, margins):
         self.arc = arc
         self.spillhole_radius = spillhole_radius
@@ -27,12 +27,15 @@ class LineGenerator(object):
         lines_right.append((lines_right[-1][2], lines_right[-1][3], self.page_centerline + point[0], point[1]))
 
 
-    def merge_line_sides(self, lines_left, lines_right):
+    def merge_line_sides(self, lines_left, lines_right, cap_top):
         lines_left.reverse()
-        return lines_left + [(lines_left[-1][2], lines_left[-1][3], lines_right[0][0], lines_right[0][1])] + lines_right
+        self.template = lines_left + [(lines_left[-1][2], lines_left[-1][3], lines_right[0][0], lines_right[0][1])] + lines_right
+        if cap_top:
+            self.template += [(lines_right[-1][2], lines_right[-1][3], lines_left[0][0], lines_left[0][1])]
+        return self.template
 
 
-    def generate_lines(self):
+    def create_template(self):
         # Gets points with equal spacing along the arc and calculates their respective gore widths
         segment_length = self.arc[-1][0] / (self.num_line_segments + 1) # Length of one line segment
         arc_index = 0
@@ -45,26 +48,71 @@ class LineGenerator(object):
         lines_right = [(self.page_centerline + origin_point[0], origin_point[1], self.page_centerline + first_point[0], first_point[1])]
         self.width = origin_point[0] * 2
 
-        for i in range(1, self.num_line_segments):
+        i = 2
+        while True:
+            i += 1
             while self.arc[arc_index][0] < segment_length * i:
-                arc_index += 1
                 if self.spillhole_radius >= self.arc[arc_index][1]:
                     # Stop at specified spillhole diameter
                     self.add_line(lines_left, lines_right, arc_index)
                     # Merge sides and add top cap for spillhole
                     self.height = self.arc[arc_index][0]
-                    return self.merge_line_sides(lines_left, lines_right) + [(lines_left[0][0], lines_left[0][1], lines_right[-1][2], lines_right[-1][3])]
+                    return self.merge_line_sides(lines_left, lines_right, True)
+                arc_index += 1
+                if arc_index >= len(self.arc):
+                    # Stop at last point (no spillhole)
+                    # Set tip x coordinate to zero to ensure that the gore lines form a closed loop
+                    del lines_left[-1]
+                    del lines_right[-1]
+                    self.add_line(lines_left, lines_right, len(self.arc) - 1)
+                    self.height = self.arc[-1][0]
+                    return self.merge_line_sides(lines_left, lines_right, False)
             self.add_line(lines_left, lines_right, arc_index)
 
-        # No spillhole
-        # Set tip x coordinate to zero to ensure that the gore lines form a closed loop
-        self.add_line(lines_left, lines_right, len(self.arc) - 1)
-        self.height = self.arc[-1][0]
-        return self.merge_line_sides(lines_left, lines_right)
-    
 
-    def offset_lines(self, lines, offset):
-        return 0
+    def det(self, a, b):
+        return a[0]*b[1] - a[1]*b[0]
+
+
+    def line_intersection(self, line1, line2):
+        dx = (line1[0] - line1[2], line2[0] - line2[2])
+        dy = (line1[1] - line1[3], line2[1] - line2[3])
+        div = self.det(dx, dy)
+        d = (self.det(line1[:2], line1[2:]), self.det(line2[:2], line2[2:]))
+        return (self.det(d, dx) / div, self.det(d, dy) / div)
+
+
+    def create_outline(self, offset):
+        outline = []
+        # Move all line segments outwards by specified offset
+        for line in self.template:
+            # Get scaled normal
+            norm = [line[3] - line[1], line[0] - line[2]]
+            length = math.hypot(norm[0], norm[1])
+            if length != 0:
+                scale = offset / length
+                norm = [norm[0] * scale, norm[1] * scale]
+                # Move line points along normal
+                outline.append([line[0] + norm[0], line[1] + norm[1], line[2] + norm[0], line[3] + norm[1]])
+            else:
+                # Ignore a zero length line
+                # This is probably caused by a very tiny spillhole
+                self.spillhole_radius = 0
+
+        # Add top cap if no spillhole exists
+        if self.spillhole_radius <= 0:
+            cap_height = self.template[0][1] + offset
+            outline.append([1, cap_height, 0, cap_height])
+
+        # Determine line intersections and connect endpoints
+        for i in range(len(outline)):
+            second_line_index = (i+1)%len(outline)
+            intersection = self.line_intersection(outline[i], outline[second_line_index])
+            outline[i][2] = outline[second_line_index][0] = intersection[0]
+            outline[i][3] = outline[second_line_index][1] = intersection[1]
+
+        self.outline = outline
+        return self.outline
 
 
 def generate_arc(iterations, radius, height):
@@ -90,7 +138,7 @@ def generate_arc(iterations, radius, height):
     return arc
 
 
-def generate_gore(iterations, diameter, spillhole_diameter, height, num_lines, num_gores, margins, file_path):
+def generate_gore(iterations, diameter, spillhole_diameter, height, outline_width, num_lines, num_gores, margins, file_path):
     # margins (top, bottom, left, right)
     print('generating gore: diameter = {0}cm, spillhole diameter = {1}cm, height = {2}cm, gores = {3}, lines = {4}, iterations = {5}'.format(round(diameter, 2), round(spillhole_diameter, 2), round(height, 2), num_gores, num_lines, iterations))
     
@@ -99,17 +147,28 @@ def generate_gore(iterations, diameter, spillhole_diameter, height, num_lines, n
     diameter *= cm_to_point
     spillhole_diameter *= cm_to_point
     height *= cm_to_point
-    margins = tuple(cm_to_point*margin for margin in margins)
+    outline_width *= cm_to_point
+    margins = tuple(cm_to_point * margin + outline_width for margin in margins)
 
     arc = generate_arc(iterations, diameter / 2, height) #(distance_along_arc, x_coordinate)
     line_generator = LineGenerator(arc, spillhole_diameter / 2, num_lines, num_gores, margins)
-    line_segments = line_generator.generate_lines()
+    line_generator.create_template()
 
     # Size canvas and draw lines
     c = canvas.Canvas(file_path, pagesize=(
         margins[2] + line_generator.width + margins[3], 
         margins[0] + line_generator.height + margins[1]))
-    c.lines(line_segments)
+    #c.lines(line_generator.template)
+    for i in range(0, len(line_generator.template), 1):
+        c.setStrokeColorRGB(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+        c.line(line_generator.template[i][0], line_generator.template[i][1], line_generator.template[i][2], line_generator.template[i][3])
+    c.setDash(2, 2)
+    if outline_width > 0:
+        #c.lines(line_generator.create_outline(outline_width))
+        line_generator.create_outline(outline_width)
+        for i in range(0, len(line_generator.outline), 1):
+            c.setStrokeColorRGB(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+            c.line(line_generator.outline[i][0], line_generator.outline[i][1], line_generator.outline[i][2], line_generator.outline[i][3])
 
     try:
         c.save()
@@ -124,6 +183,7 @@ def parse_args():
     parser.add_argument('spillhole', type=float, help='spillhole diameter (measured in cm across the inflated canopy spillhole)')
     parser.add_argument('gores', type=int, help='number of gores')
     parser.add_argument('-t', type=float, help='canopy height (measured in cm from canopy top to bottom, ignoring spillhole size)', dest='height', default=-1)
+    parser.add_argument('-a', type=float, help='stitching allowance in cm', dest='allowance', default=2)
     parser.add_argument('-l', type=int, help='number of line segments per side of gore', dest='lines', default=100)
     parser.add_argument('-i', type=int, help='total iterations used to approximate ellipse arc segments', dest='iterations', default=10000)
     parser.add_argument('-o', type=str, help='output file', dest='output', default='template.pdf')
@@ -142,6 +202,9 @@ def parse_args():
         return
     if args.gores <= 0:
         print('error: argument gores: number of gores must be greater than zero')
+        return
+    if args.allowance < 0:
+        print('error: argument allowance: stitching allowance can not be negative')
         return
     if args.lines <= 0:
         print('error: argument lines: number of lines must be greater than zero')
@@ -169,7 +232,7 @@ def parse_args():
         print('canopy height set to radius/sqrt(2)')
         height = args.diameter / (2 * math.sqrt(2))
 
-    generate_gore(args.iterations, args.diameter, args.spillhole, height, args.lines, args.gores, tuple(args.margins), file_path)
+    generate_gore(args.iterations, args.diameter, args.spillhole, height, args.allowance, args.lines, args.gores, tuple(args.margins), file_path)
 
 
 parse_args()
