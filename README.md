@@ -10,7 +10,7 @@ Reportlab is required to generate pdf files
 
 ## Usage
 
-    paracalc.py diameter spillhole gores [-h] [-t HEIGHT] [-a ALLOWANCE] [-l LINES] [-i ITERATIONS] [-o OUTPUT] [-m MARGINS [MARGINS ...]]
+    python paracalc.py diameter spillhole gores [-h] [-t HEIGHT] [-a ALLOWANCE] [-l LINES] [-i ITERATIONS] [-o OUTPUT] [-m MARGINS [MARGINS ...]]
 
 positional arguments:
 
