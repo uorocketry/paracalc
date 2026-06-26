@@ -54,16 +54,19 @@ class LineGenerator:
             norm = [line[3] - line[1], line[0] - line[2]]
             length = math.hypot(norm[0], norm[1])
             if length != 0:
-                scale = -offset / length
+                scale = offset / length
                 norm = [norm[0] * scale, norm[1] * scale]
                 # Move line points along normal
                 outline.append([line[0] + norm[0], line[1] + norm[1], line[2] + norm[0], line[3] + norm[1]])
             else:
                 # Ignore a zero length line
                 # This is probably caused by a very tiny spillhole
-                self.spillhole_radius = 0
+                print("Zero-length line:")
+                print(line)
+                continue
 
         # Add top cap if no spillhole exists
+        print("spillhole_radius =", self.spillhole_radius)
         if self.spillhole_radius <= 0:
             cap_height = self.template[0][1] + offset
             outline.append([1, cap_height, 0, cap_height])
@@ -72,6 +75,9 @@ class LineGenerator:
         for i in range(len(outline)):
             second_line_index = (i+1)%len(outline)
             intersection = self.line_intersection(outline[i], outline[second_line_index])
+            if intersection is None:
+                print(f"Warning: no intersection between segments {i} and {second_line_index}")
+                continue
             outline[i][2] = outline[second_line_index][0] = intersection[0]
             outline[i][3] = outline[second_line_index][1] = intersection[1]
 
@@ -106,5 +112,7 @@ class LineGenerator:
         dx = (line1[0] - line1[2], line2[0] - line2[2])
         dy = (line1[1] - line1[3], line2[1] - line2[3])
         div = self.det(dx, dy)
+        if abs(div) < 1e-10:
+            return None
         d = (self.det(line1[:2], line1[2:]), self.det(line2[:2], line2[2:]))
         return (self.det(d, dx) / div, self.det(d, dy) / div)

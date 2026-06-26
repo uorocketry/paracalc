@@ -28,7 +28,7 @@ def generate_gore(iterations, diameter, spillhole_diameter, height, outline_widt
         margins[2] + line_generator.width + margins[3], 
         margins[0] + line_generator.height + margins[1]))
     c.lines(line_generator.template)
-    c.setDash(2, 2)
+    #c.setDash(2, 2)
     if outline_width > 0:
         c.lines(line_generator.create_outline(outline_width))
 
